@@ -1,0 +1,242 @@
+<?php
+/**
+ * public_html/config/config.php
+ *
+ * Database connection & environment setup
+ * Security baseline: Uses prepared statements, environment variables
+ *
+ * PRODUCTION VERSION - Updated for Site_3_DB_SIPB hosting
+ */
+
+// ============================================
+// Load Environment Variables (.env)
+// ============================================
+
+$env_file = __DIR__ . '/../../.env';
+if (file_exists($env_file)) {
+    $env = parse_ini_file($env_file);
+    foreach ($env as $key => $value) {
+        putenv("$key=$value");
+    }
+} else {
+    die("❌ Error: .env file not found. Copy .env.example to .env and fill in your database credentials.");
+}
+
+// ============================================
+// Database Connection
+// ============================================
+
+// PRODUCTION DEFAULT VALUES - Updated for Site_3_DB_SIPB
+// These fallback values are for production environment
+// .env file MUST be present in hosting for proper configuration
+$db_host = getenv('DB_HOST') ?: '127.0.0.1';                    // Default: localhost (typical for shared hosting)
+$db_port = getenv('DB_PORT') ?: '3306';                         // Default: MySQL standard port
+$db_user = getenv('DB_USER') ?: 'Site_3_azizindogum';           // PRODUCTION: Site_3 database user
+$db_pass = getenv('DB_PASS') ?: 'F24130121@itp';                // PRODUCTION: Site_3 password
+$db_name = getenv('DB_NAME') ?: 'Site_3_DB_SIPB';               // ✅ PRODUCTION: Site_3 database name (NOT u910905373_lm!)
+
+// Create connection (procedural style for MySQLi)
+$conn = new mysqli($db_host . ':' . $db_port, $db_user, $db_pass, $db_name);
+
+// Check connection
+if ($conn->connect_error) {
+    die("❌ Database connection failed: " . $conn->connect_error);
+}
+
+// Set charset & timezone
+$conn->set_charset('utf8mb4');
+if (!$conn->query("SET time_zone = '+07:00'")) {
+    die("❌ Timezone set failed: " . $conn->error);
+}
+
+// ============================================
+// Load Helper Classes
+// ============================================
+
+// Load Database class
+require_once __DIR__ . '/Database.php';
+
+// Load other helper classes (optional, load only when needed)
+// require_once __DIR__ . '/Mailer.php';
+// require_once __DIR__ . '/Approval.php';
+// require_once __DIR__ . '/DocumentNumber.php';
+// require_once __DIR__ . '/PDFExport.php';
+
+// ============================================
+// Session Configuration
+// ============================================
+
+// Session timeout (30 minutes) - dibaca duluan supaya bisa dipakai untuk selaraskan session.gc_maxlifetime
+$session_timeout = intval(getenv('SESSION_TIMEOUT') ?: 1800);
+
+// Session security settings MUST be set BEFORE session_start() is called
+if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.cookie_httponly', 1);  // Prevent JS access to cookies
+    ini_set('session.cookie_secure', 0);    // Set to 1 if using HTTPS (set to 1 in production!)
+    ini_set('session.use_strict_mode', 1);  // Prevent session fixation
+
+    // PENTING: PHP's own garbage collector (session.gc_maxlifetime, default 1440s/24 menit
+    // di XAMPP) bisa menghapus file session SEBELUM app-level timeout ($session_timeout, 30 menit)
+    // sempat jalan. Kalau gc_maxlifetime < app timeout, user yang isi form lama akan
+    // ke-logout paksa secara diam-diam (session hilang, redirect ke login tanpa pesan jelas).
+    // Selaraskan gc_maxlifetime supaya >= app timeout (+ buffer 5 menit).
+    ini_set('session.gc_maxlifetime', $session_timeout + 300);
+    ini_set('session.cookie_lifetime', $session_timeout + 300);
+
+    session_start();
+}
+
+// Regenerate session ID after login (prevent session fixation)
+if (!isset($_SESSION['session_initiated'])) {
+    session_regenerate_id(true);
+    $_SESSION['session_initiated'] = true;
+}
+
+// Check session timeout
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) > $session_timeout) {
+    session_destroy();
+    // Dynamic redirect based on APP_URL
+    $app_url = getenv('APP_URL') ?: 'http://localhost/SIPB-GPI';
+    $login_redirect = rtrim($app_url, '/') . '/login.php?msg=Session+expired';
+    header("Location: $login_redirect");
+    exit();
+}
+$_SESSION['last_activity'] = time();
+
+// ============================================
+// CSRF Token Initialization
+// ============================================
+
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+// ============================================
+// Auth Middleware (requires login)
+// ============================================
+// IMPORTANT: Include this file at the TOP of every protected page
+
+if (!function_exists('require_login')) {
+    function require_login() {
+        if (!isset($_SESSION['user_id'])) {
+            // TEMPORARY DEBUG LOGGING - untuk investigasi bug "redirect ke login, data hilang"
+            // Hapus blok ini setelah root cause ketemu & terverifikasi fix.
+            $debug_log = __DIR__ . '/../../session_debug.log';
+            $debug_msg = sprintf(
+                "[%s] SESSION LOST -> redirect to login | URI=%s | Method=%s | SessionID=%s | SessionKeys=%s | Cookie_PHPSESSID=%s | POST_size=%d\n",
+                date('Y-m-d H:i:s'),
+                $_SERVER['REQUEST_URI'] ?? 'unknown',
+                $_SERVER['REQUEST_METHOD'] ?? 'unknown',
+                session_id(),
+                implode(',', array_keys($_SESSION)),
+                $_COOKIE['PHPSESSID'] ?? 'NO_COOKIE_SENT',
+                isset($_POST) ? count($_POST) : 0
+            );
+            @file_put_contents($debug_log, $debug_msg, FILE_APPEND);
+
+            // Dynamic redirect based on APP_URL
+            $app_url = getenv('APP_URL') ?: 'http://localhost/SIPB-GPI';
+            $login_url = rtrim($app_url, '/') . '/login.php';
+            header("Location: $login_url");
+            exit();
+        }
+    }
+}
+
+if (!function_exists('require_role')) {
+    function require_role($required_role) {
+        if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== $required_role) {
+            http_response_code(403);
+            die("❌ Access denied. Required role: " . htmlspecialchars($required_role));
+        }
+    }
+}
+
+if (!function_exists('require_roles')) {
+    function require_roles($allowed_roles = []) {
+        if (!isset($_SESSION['user_role']) || !in_array($_SESSION['user_role'], $allowed_roles)) {
+            http_response_code(403);
+            die("❌ Access denied.");
+        }
+    }
+}
+
+// ============================================
+// Helper: Get logged-in user info
+// ============================================
+// NOTE: Using get_logged_in_user() instead of get_current_user()
+// because PHP 8+ has a built-in get_current_user() that returns OS user
+
+if (!function_exists('get_logged_in_user')) {
+    function get_logged_in_user() {
+        return [
+            'id' => $_SESSION['user_id'] ?? null,
+            'nik' => $_SESSION['user_nik'] ?? null,
+            'name' => $_SESSION['user_name'] ?? null,
+            'email' => $_SESSION['user_email'] ?? null,
+            'role' => $_SESSION['user_role'] ?? null,
+            'section' => $_SESSION['user_section'] ?? null,
+            'position_id' => $_SESSION['position_id'] ?? null,
+            'position_name' => $_SESSION['position_name'] ?? null,
+            'approval_level' => $_SESSION['approval_level'] ?? null, // 'SPV', 'PM', atau null (bukan approver)
+        ];
+    }
+}
+
+// Alias for backward compatibility (if needed)
+if (!function_exists('get_current_user_info')) {
+    function get_current_user_info() {
+        return get_logged_in_user();
+    }
+}
+
+// ============================================
+// Helper: Log activity to audit_log
+// ============================================
+
+if (!function_exists('log_audit')) {
+    function log_audit($conn, $sipb_id, $action, $notes = '', $old_value = null, $new_value = null) {
+        $user_id = $_SESSION['user_id'] ?? null;
+        $ip_address = $_SERVER['REMOTE_ADDR'] ?? '';
+        $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+
+        if (!$user_id) return false;
+
+        // Convert sipb_id = 0 to NULL (for non-SIPB logs like login, registration)
+        $sipb_id = ($sipb_id == 0) ? null : $sipb_id;
+
+        $old_json = $old_value ? json_encode($old_value) : null;
+        $new_json = $new_value ? json_encode($new_value) : null;
+
+        $query = "INSERT INTO sipb_audit_log (sipb_id, action, action_by, notes, old_value, new_value, ip_address, user_agent)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+
+        $stmt = $conn->prepare($query);
+        if (!$stmt) {
+            return false;
+        }
+
+        $stmt->bind_param('isisssss', $sipb_id, $action, $user_id, $notes, $old_json, $new_json, $ip_address, $user_agent);
+        return @$stmt->execute(); // Suppress warnings
+    }
+}
+
+// ============================================
+// App Configuration Constants
+// ============================================
+
+define('APP_NAME', getenv('APP_NAME') ?: 'SIPB-GPI');
+define('APP_URL', getenv('APP_URL') ?: 'http://localhost/SIPB-GPI');
+define('APP_ENV', getenv('APP_ENV') ?: 'development');
+define('APP_DEBUG', getenv('APP_DEBUG') === 'true' ? true : false);
+
+// Display errors only in development
+if (APP_DEBUG) {
+    ini_set('display_errors', 1);
+    error_reporting(E_ALL);
+} else {
+    ini_set('display_errors', 0);
+    error_reporting(E_ALL);
+}
+
+?>

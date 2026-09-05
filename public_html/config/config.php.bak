@@ -1,0 +1,181 @@
+<?php
+/**
+ * public_html/config/config.php
+ *
+ * Database connection & environment setup
+ * Security baseline: Uses prepared statements, environment variables
+ */
+
+// ============================================
+// Load Environment Variables (.env)
+// ============================================
+
+$env_file = __DIR__ . '/../../.env';
+if (file_exists($env_file)) {
+    $env = parse_ini_file($env_file);
+    foreach ($env as $key => $value) {
+        putenv("$key=$value");
+    }
+} else {
+    die("❌ Error: .env file not found. Copy .env.example to .env and fill in your database credentials.");
+}
+
+// ============================================
+// Database Connection
+// ============================================
+
+$db_host = getenv('DB_HOST') ?: '127.0.0.1';
+$db_port = getenv('DB_PORT') ?: '3306';
+$db_user = getenv('DB_USER') ?: 'root';
+$db_pass = getenv('DB_PASS') ?: '';
+$db_name = getenv('DB_NAME') ?: 'u910905373_lm';
+
+// Create connection (procedural style for MySQLi)
+$conn = new mysqli($db_host . ':' . $db_port, $db_user, $db_pass, $db_name);
+
+// Check connection
+if ($conn->connect_error) {
+    die("❌ Database connection failed: " . $conn->connect_error);
+}
+
+// Set charset & timezone
+$conn->set_charset('utf8mb4');
+if (!$conn->query("SET time_zone = '+07:00'")) {
+    die("❌ Timezone set failed: " . $conn->error);
+}
+
+// ============================================
+// Session Configuration
+// ============================================
+
+// Start session
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Session security settings
+ini_set('session.cookie_httponly', 1);  // Prevent JS access to cookies
+ini_set('session.cookie_secure', 0);    // Set to 1 if using HTTPS
+ini_set('session.use_strict_mode', 1);  // Prevent session fixation
+
+// Session timeout (30 minutes)
+$session_timeout = intval(getenv('SESSION_TIMEOUT') ?: 1800);
+
+// Regenerate session ID after login (prevent session fixation)
+if (!isset($_SESSION['session_initiated'])) {
+    session_regenerate_id(true);
+    $_SESSION['session_initiated'] = true;
+}
+
+// Check session timeout
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) > $session_timeout) {
+    session_destroy();
+    header("Location: login.php?msg=Session expired");
+    exit();
+}
+$_SESSION['last_activity'] = time();
+
+// ============================================
+// CSRF Token Initialization
+// ============================================
+
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+// ============================================
+// Auth Middleware (requires login)
+// ============================================
+// IMPORTANT: Include this file at the TOP of every protected page
+
+if (!function_exists('require_login')) {
+    function require_login() {
+        if (!isset($_SESSION['user_id'])) {
+            header("Location: login.php");
+            exit();
+        }
+    }
+}
+
+if (!function_exists('require_role')) {
+    function require_role($required_role) {
+        if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== $required_role) {
+            http_response_code(403);
+            die("❌ Access denied. Required role: " . htmlspecialchars($required_role));
+        }
+    }
+}
+
+if (!function_exists('require_roles')) {
+    function require_roles($allowed_roles = []) {
+        if (!isset($_SESSION['user_role']) || !in_array($_SESSION['user_role'], $allowed_roles)) {
+            http_response_code(403);
+            die("❌ Access denied.");
+        }
+    }
+}
+
+// ============================================
+// Helper: Get logged-in user info
+// ============================================
+
+if (!function_exists('get_current_user')) {
+    function get_current_user() {
+        return [
+            'id' => $_SESSION['user_id'] ?? null,
+            'nik' => $_SESSION['user_nik'] ?? null,
+            'name' => $_SESSION['user_name'] ?? null,
+            'email' => $_SESSION['user_email'] ?? null,
+            'role' => $_SESSION['user_role'] ?? null,
+            'section' => $_SESSION['user_section'] ?? null,
+        ];
+    }
+}
+
+// ============================================
+// Helper: Log activity to audit_log
+// ============================================
+
+if (!function_exists('log_audit')) {
+    function log_audit($conn, $sipb_id, $action, $notes = '', $old_value = null, $new_value = null) {
+        $user_id = $_SESSION['user_id'] ?? null;
+        $ip_address = $_SERVER['REMOTE_ADDR'] ?? '';
+        $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+
+        if (!$user_id) return false;
+
+        $old_json = $old_value ? json_encode($old_value) : null;
+        $new_json = $new_value ? json_encode($new_value) : null;
+
+        $query = "INSERT INTO sipb_audit_log (sipb_id, action, action_by, notes, old_value, new_value, ip_address, user_agent)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+
+        $stmt = $conn->prepare($query);
+        if (!$stmt) {
+            return false;
+        }
+
+        $stmt->bind_param('isisssss', $sipb_id, $action, $user_id, $notes, $old_json, $new_json, $ip_address, $user_agent);
+        return $stmt->execute();
+    }
+}
+
+// ============================================
+// App Configuration Constants
+// ============================================
+
+define('APP_NAME', getenv('APP_NAME') ?: 'SIPB-GPI');
+define('APP_URL', getenv('APP_URL') ?: 'http://localhost/SIPB-GPI');
+define('APP_ENV', getenv('APP_ENV') ?: 'development');
+define('APP_DEBUG', getenv('APP_DEBUG') === 'true' ? true : false);
+
+// Display errors only in development
+if (APP_DEBUG) {
+    ini_set('display_errors', 1);
+    error_reporting(E_ALL);
+} else {
+    ini_set('display_errors', 0);
+    error_reporting(E_ALL);
+}
+
+?>

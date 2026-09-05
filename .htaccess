@@ -1,0 +1,46 @@
+# Apache Configuration for SIPB-GPI
+# Place this in public_html/ root if URL rewriting is needed
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Remove index.php from URLs (if needed)
+    # RewriteCond %{REQUEST_FILENAME} !-f
+    # RewriteCond %{REQUEST_FILENAME} !-d
+    # RewriteRule ^(.*)$ index.php?/$1 [L]
+
+    # Deny access to .env file
+    <Files ".env">
+        Order allow,deny
+        Deny from all
+    </Files>
+
+    # Deny access to database folder
+    <FilesMatch "\.sql$">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+
+    # Allow directory listing
+    Options +Indexes
+</IfModule>
+
+# Security Headers
+<IfModule mod_headers.c>
+    # Prevent clickjacking
+    Header set X-Frame-Options "SAMEORIGIN"
+
+    # Prevent MIME type sniffing
+    Header set X-Content-Type-Options "nosniff"
+
+    # Enable XSS protection
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+# Set PHP configuration (if not set in php.ini)
+<IfModule mod_php.c>
+    php_value upload_max_filesize 10M
+    php_value post_max_size 10M
+    php_value memory_limit 256M
+    php_value max_execution_time 300
+</IfModule>
