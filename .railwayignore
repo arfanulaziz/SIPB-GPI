@@ -1,0 +1,17 @@
+node_modules/
+.git/
+.env
+.env.infinityfree
+.env.example
+.htaccess.bak
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+DEPLOYMENT_CHECKLIST.md
+DEPLOYMENT_INFINITYFREE.md
+EXCLUDED_FILES.md
+FILE_INDEX.txt
+QUICK_START.md
+README.md
+SUMMARY.md
