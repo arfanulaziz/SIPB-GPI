@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * public_html/index.php
  *

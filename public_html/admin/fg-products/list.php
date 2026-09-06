@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * public_html/admin/fg-products/list.php
  *
