@@ -296,7 +296,11 @@ $suggested_recipients = [];
 $suggested_companies = [];
 
 $recipients = $db->getRows(
-    "SELECT DISTINCT recipient FROM sipb_documents WHERE recipient IS NOT NULL AND recipient != '' ORDER BY created_at DESC LIMIT 10",
+    // GROUP BY + MAX() instead of DISTINCT + ORDER BY created_at: under
+    // ONLY_FULL_GROUP_BY (default on MySQL 8+) ordering by a column outside the
+    // SELECT list is rejected when DISTINCT is used. Same result: unique
+    // recipients, most recently used first.
+    "SELECT recipient FROM sipb_documents WHERE recipient IS NOT NULL AND recipient != '' GROUP BY recipient ORDER BY MAX(created_at) DESC LIMIT 10",
     []
 );
 foreach ($recipients as $r) {
@@ -304,7 +308,7 @@ foreach ($recipients as $r) {
 }
 
 $companies = $db->getRows(
-    "SELECT DISTINCT company FROM sipb_documents WHERE company IS NOT NULL AND company != '' ORDER BY created_at DESC LIMIT 10",
+    "SELECT company FROM sipb_documents WHERE company IS NOT NULL AND company != '' GROUP BY company ORDER BY MAX(created_at) DESC LIMIT 10",
     []
 );
 foreach ($companies as $c) {
