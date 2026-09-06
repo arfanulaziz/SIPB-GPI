@@ -1,5 +1,8 @@
 FROM php:8.2-apache
 
+# Disable default MPM modules to avoid conflict
+RUN a2dismod mpm_prefork mpm_worker mpm_event || true
+
 # Enable PHP extensions
 RUN docker-php-ext-install mysqli pdo pdo_mysql
 
@@ -19,8 +22,11 @@ RUN mkdir -p /var/www/html/migrations && \
 ENV APACHE_DOCUMENT_ROOT=/var/www/html
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 
-# Enable mod_rewrite for .htaccess
+# Enable mod_rewrite
 RUN a2enmod rewrite
+
+# Enable mpm_prefork explicitly (single process, most compatible)
+RUN a2enmod mpm_prefork
 
 # Create uploads directory
 RUN mkdir -p /var/www/html/uploads && chmod 755 /var/www/html/uploads
