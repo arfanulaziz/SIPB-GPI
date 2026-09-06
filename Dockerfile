@@ -12,11 +12,11 @@ COPY public_html/ /var/www/html/
 COPY database/ /var/www/html/database/
 
 # config.php resolves .env as __DIR__/../../.env — from /var/www/html/config
-# that is /var/.env, NOT /var/www/html/.env.
+# that is /var/www/.env, NOT /var/www/html/.env.
 # Left EMPTY on purpose: it satisfies the file_exists() check in config.php,
 # while parse_ini_file() returns [] so nothing is putenv()'d over the real
 # DB_* / APP_* variables Railway injects into the environment.
-RUN touch /var/.env
+RUN touch /var/www/.env
 
 RUN mkdir -p /var/www/html/uploads && chmod 777 /var/www/html/uploads
 
