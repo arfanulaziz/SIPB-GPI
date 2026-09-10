@@ -266,9 +266,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         log_audit($conn, $sipb_id, 'sipb_created', "SIPB dibuat: $doc_number (Items: " . count($items) . ")", null, null);
 
                         // Send approval notification emails to all active approvers
-                        require_once __DIR__ . '/../config/send_approval_notification.php';
-                        $notification_result = send_approval_notification($conn, $sipb_id, $doc_number, $current_user['name']);
-                        // Note: Notification errors are logged but don't block SIPB creation
+                        // (graceful: if email fails, SIPB creation still succeeds; notification will be skipped)
+                        try {
+                            if (file_exists(__DIR__ . '/../config/send_approval_notification.php')) {
+                                require_once __DIR__ . '/../config/send_approval_notification.php';
+                                $notification_result = send_approval_notification($conn, $sipb_id, $doc_number, $current_user['name']);
+                            }
+                        } catch (Exception $e) {
+                            // Email system not available or failed; log it but don't block SIPB creation
+                            log_audit($conn, $sipb_id, 'sipb_created', "Warning: Could not send approval notifications: " . $e->getMessage(), null, null);
+                        }
 
                         header("Location: view.php?id=$sipb_id&success=1");
                         exit;
