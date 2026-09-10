@@ -19,8 +19,13 @@ if (empty($_SESSION['user_id'])) {
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/Database.php';
 
-$db = new Database($GLOBALS['conn'] ?? null);
-$conn = $db->conn;
+// Use the global $conn from config.php, not Database class (which has protected $conn)
+global $conn;
+if (!$conn) {
+    http_response_code(500);
+    die(json_encode(['error' => 'Database connection failed']));
+}
+
 $current_user = $_SESSION['user'] ?? [];
 $user_id = $_SESSION['user_id'];
 $is_admin = ($current_user['role'] === 'superadmin');
@@ -32,8 +37,16 @@ if (!$sipb_id) {
     die(json_encode(['error' => 'SIPB ID required']));
 }
 
-// Fetch SIPB document
-$sipb = $db->getRow("SELECT id, doc_number, status, created_by FROM sipb_documents WHERE id = ?", [$sipb_id]);
+// Fetch SIPB document using prepared statement
+$stmt = $conn->prepare("SELECT id, doc_number, status, created_by FROM sipb_documents WHERE id = ?");
+if (!$stmt) {
+    http_response_code(500);
+    die(json_encode(['error' => 'Database error: ' . $conn->error]));
+}
+$stmt->bind_param('i', $sipb_id);
+$stmt->execute();
+$result = $stmt->get_result();
+$sipb = $result->fetch_assoc();
 if (!$sipb) {
     http_response_code(404);
     die(json_encode(['error' => 'SIPB not found']));

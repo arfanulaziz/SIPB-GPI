@@ -265,16 +265,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         log_audit($conn, $sipb_id, 'sipb_created', "SIPB dibuat: $doc_number (Items: " . count($items) . ")", null, null);
 
-                        // Send approval notification emails to all active approvers
-                        // (graceful: if email fails, SIPB creation still succeeds; notification will be skipped)
-                        try {
-                            if (file_exists(__DIR__ . '/../config/send_approval_notification.php')) {
+                        // Send approval notification emails (graceful: skip if not available)
+                        // Note: email system not critical; SIPB creation must still succeed
+                        if (file_exists(__DIR__ . '/../config/send_approval_notification.php') &&
+                            file_exists(__DIR__ . '/../vendor_manual/PHPMailer.php')) {
+                            try {
                                 require_once __DIR__ . '/../config/send_approval_notification.php';
-                                $notification_result = send_approval_notification($conn, $sipb_id, $doc_number, $current_user['name']);
+                                if (function_exists('send_approval_notification')) {
+                                    $notification_result = send_approval_notification($conn, $sipb_id, $doc_number, $current_user['name']);
+                                }
+                            } catch (Throwable $e) {
+                                // Email failed; log but don't block
+                                log_audit($conn, $sipb_id, 'sipb_created', "Warning: Email notification skipped: " . $e->getMessage(), null, null);
                             }
-                        } catch (Exception $e) {
-                            // Email system not available or failed; log it but don't block SIPB creation
-                            log_audit($conn, $sipb_id, 'sipb_created', "Warning: Could not send approval notifications: " . $e->getMessage(), null, null);
                         }
 
                         header("Location: list.php?success=1&new_sipb=$sipb_id");
