@@ -162,6 +162,17 @@ $BASE = getenv('APP_URL') ?: 'http://localhost/SIPB-GPI';
                         <input type="hidden" name="form_action" value="submit">
                         <button type="submit" class="btn-primary-pill" id="submitBtn"><i class="fas fa-paper-plane"></i> Submit untuk Persetujuan</button>
                     </form>
+                    <?php
+                    // Delete button: only creator or admin can delete draft documents
+                    $is_creator = ($current_user['id'] === $sipb['created_by']);
+                    $is_admin = ($current_user['role'] === 'superadmin');
+                    if ($is_creator || $is_admin):
+                    ?>
+                    <button onclick="confirmDelete(<?php echo $sipb_id; ?>, '<?php echo htmlspecialchars($sipb['doc_number']); ?>')"
+                            class="btn-danger-pill" style="background-color: #e74c3c; color: white;">
+                        <i class="fas fa-trash"></i> Delete Draft
+                    </button>
+                    <?php endif; ?>
                 <?php endif; ?>
                 <a href="<?php echo $BASE; ?>/index.php" class="btn-secondary-pill"><i class="fas fa-house"></i> Home</a>
                 <a href="print.php?id=<?php echo $sipb_id; ?>" class="btn-primary-pill" target="_blank"><i class="fas fa-print"></i> Print</a>
@@ -331,6 +342,24 @@ $BASE = getenv('APP_URL') ?: 'http://localhost/SIPB-GPI';
                 e.preventDefault();
             }
         });
+    }
+
+    function confirmDelete(sipbId, docNumber) {
+        if (!confirm(`Yakin ingin menghapus SIPB ${docNumber}?\n\nAksi ini tidak dapat dibatalkan.`)) {
+            return;
+        }
+
+        fetch(`delete.php?id=${sipbId}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    window.location.href = data.redirect;
+                } else {
+                    alert(`Error: ${data.error}`);
+                }
+            })
+            .catch(err => alert(`Error: ${err.message}`));
     }
 </script>
 

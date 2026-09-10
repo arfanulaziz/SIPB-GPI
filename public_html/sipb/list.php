@@ -280,6 +280,17 @@ $status_colors = [
                                     <td>
                                         <a href="view.php?id=<?php echo $sipb['id']; ?>" class="btn-action view" title="View"><i class="fas fa-eye"></i></a>
                                         <a href="print.php?id=<?php echo $sipb['id']; ?>" class="btn-action print" target="_blank" title="Print"><i class="fas fa-print"></i></a>
+                                        <?php
+                                        // Delete button: only creator or admin, only for draft
+                                        $can_delete = ($sipb['status'] === 'Draft') &&
+                                                     (($user_id === $sipb['created_by']) || ($user_role === 'superadmin'));
+                                        if ($can_delete):
+                                        ?>
+                                        <button onclick="confirmDeleteFromList(<?php echo $sipb['id']; ?>, '<?php echo htmlspecialchars($sipb['doc_number']); ?>')"
+                                                class="btn-action delete" title="Delete Draft" style="color: #e74c3c;">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -317,6 +328,26 @@ $status_colors = [
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+function confirmDeleteFromList(sipbId, docNumber) {
+    if (!confirm(`Yakin ingin menghapus SIPB ${docNumber}?\n\nAksi ini tidak dapat dibatalkan.`)) {
+        return;
+    }
+
+    fetch(`delete.php?id=${sipbId}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert(`Error: ${data.error}`);
+            }
+        })
+        .catch(err => alert(`Error: ${err.message}`));
+}
+</script>
 
 </body>
 </html>
