@@ -44,14 +44,11 @@ $approvals = $db->getRows(
 // Get creator
 $creator = $db->getRow("SELECT name, email FROM users WHERE id = ?", [$sipb['created_by']]);
 
-// URL verifikasi security (di-encode ke QR) - pakai verify_token, bukan ID biasa, biar gak gampang ditebak
-$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-// FIX: Use local IP address instead of localhost so mobile devices can scan QR code
-// Default fallback ke HTTP_HOST jika tidak ada IP override, tapi saat ini pakai IP lokal
-$host = '192.168.150.25';  // IP address lokal di WiFi kantor
+// URL verifikasi security (di-encode ke QR) - pakai verify_token, bukan ID biasa
+// Extract the base URL from APP_URL (which varies by environment: localhost, Railway, production)
 $app_url = rtrim(getenv('APP_URL') ?: 'http://localhost/SIPB-GPI', '/');
 $verify_url = $sipb['verify_token']
-    ? "$protocol://$host$app_url/verify.php?token=" . $sipb['verify_token']
+    ? "$app_url/verify.php?token=" . $sipb['verify_token']
     : null;
 ?>
 <!DOCTYPE html>
