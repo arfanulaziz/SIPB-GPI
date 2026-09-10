@@ -8,6 +8,8 @@
 
 session_start();
 
+header('Content-Type: application/json');
+
 // Check authentication
 if (empty($_SESSION['user_id'])) {
     http_response_code(401);
@@ -17,7 +19,7 @@ if (empty($_SESSION['user_id'])) {
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/Database.php';
 
-$db = new Database();
+$db = new Database($GLOBALS['conn'] ?? null);
 $conn = $db->conn;
 $current_user = $_SESSION['user'] ?? [];
 $user_id = $_SESSION['user_id'];
@@ -49,15 +51,24 @@ if ($sipb['status'] !== 'Draft') {
     die(json_encode(['error' => "Cannot delete. Only 'Draft' documents can be deleted. Current status: {$sipb['status']}"]));
 }
 
-// Delete the document (items will cascade delete if foreign key configured)
-$result = $conn->query("DELETE FROM sipb_documents WHERE id = ?");
-if (!$result) {
+// Delete items first (for safety, even if cascade is configured)
+$stmt = $conn->prepare("DELETE FROM sipb_items WHERE sipb_id = ?");
+if ($stmt) {
+    $stmt->bind_param('i', $sipb_id);
+    $stmt->execute();
+}
+
+// Then delete the document
+$stmt = $conn->prepare("DELETE FROM sipb_documents WHERE id = ?");
+if (!$stmt) {
     http_response_code(500);
     die(json_encode(['error' => 'Database error: ' . $conn->error]));
 }
-
-// Also explicitly delete items (for safety)
-$conn->query("DELETE FROM sipb_items WHERE sipb_id = ?");
+$stmt->bind_param('i', $sipb_id);
+if (!$stmt->execute()) {
+    http_response_code(500);
+    die(json_encode(['error' => 'Delete failed: ' . $stmt->error]));
+}
 
 // Log audit trail
 require_once __DIR__ . '/../includes/audit_log.php';

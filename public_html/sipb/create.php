@@ -277,7 +277,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             log_audit($conn, $sipb_id, 'sipb_created', "Warning: Could not send approval notifications: " . $e->getMessage(), null, null);
                         }
 
-                        header("Location: view.php?id=$sipb_id&success=1");
+                        header("Location: list.php?success=1&new_sipb=$sipb_id");
                         exit;
 
                     } catch (Exception $e) {
