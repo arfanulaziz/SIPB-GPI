@@ -83,14 +83,14 @@ if (!$stmt->execute()) {
     die(json_encode(['error' => 'Delete failed: ' . $stmt->error]));
 }
 
-// Log audit trail
-require_once __DIR__ . '/../includes/audit_log.php';
+// Log audit trail (function is already in config.php)
 log_audit($conn, $sipb_id, 'sipb_deleted', "SIPB dihapus: {$sipb['doc_number']}", null, null);
 
-// Return success
+// Return success JSON
 http_response_code(200);
-die(json_encode([
+echo json_encode([
     'success' => true,
     'message' => "SIPB {$sipb['doc_number']} berhasil dihapus",
     'redirect' => 'list.php'
-]));
+]);
+exit;
