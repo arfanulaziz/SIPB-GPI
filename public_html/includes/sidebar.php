@@ -46,6 +46,9 @@ $role_labels = [
             <i class="fas fa-trash"></i> <span class="label">Cleanup Rejected SIPB</span>
         </a>
         <?php endif; ?>
+        <a href="<?php echo $BASE; ?>/profile.php" class="<?php echo $active_page === 'profile' ? 'active' : ''; ?>">
+            <i class="fas fa-user"></i> <span class="label">My Profile</span>
+        </a>
         <a href="<?php echo $BASE; ?>/logout.php">
             <i class="fas fa-right-from-bracket"></i> <span class="label">Logout</span>
         </a>
