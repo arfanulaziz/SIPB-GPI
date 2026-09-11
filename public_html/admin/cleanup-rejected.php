@@ -10,17 +10,27 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/Database.php';
 
-// Check admin access
+// Load user from session or database
 $current_user = $_SESSION['user'] ?? [];
+$user_id = $_SESSION['user_id'] ?? null;
+
+// If session user not set but user_id exists, fetch from database
+if (empty($current_user) && $user_id) {
+    global $conn;
+    $stmt = $conn->prepare("SELECT id, nik, name, email, role, section FROM users WHERE id = ?");
+    $stmt->bind_param('i', $user_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $current_user = $result->fetch_assoc() ?? [];
+    if (!empty($current_user)) {
+        $_SESSION['user'] = $current_user;  // Cache for this request
+    }
+}
+
+// Check admin access
 if (empty($current_user) || $current_user['role'] !== 'superadmin') {
     http_response_code(403);
-    // Debug info
-    $debug = [
-        'session_has_user' => isset($_SESSION['user']),
-        'user_array' => !empty($current_user) ? ['nik' => $current_user['nik'], 'role' => $current_user['role']] : 'empty',
-        'session_user_id' => $_SESSION['user_id'] ?? 'not set',
-    ];
-    die("❌ Access Denied. Superadmin only.\n\nDebug: " . json_encode($debug));
+    die("❌ Access Denied. Superadmin only.");
 }
 
 global $conn;
