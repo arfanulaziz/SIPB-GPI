@@ -12,9 +12,15 @@ require_once __DIR__ . '/../config/Database.php';
 
 // Check admin access
 $current_user = $_SESSION['user'] ?? [];
-if ($current_user['role'] !== 'superadmin') {
+if (empty($current_user) || $current_user['role'] !== 'superadmin') {
     http_response_code(403);
-    die("❌ Access Denied. Superadmin only.");
+    // Debug info
+    $debug = [
+        'session_has_user' => isset($_SESSION['user']),
+        'user_array' => !empty($current_user) ? ['nik' => $current_user['nik'], 'role' => $current_user['role']] : 'empty',
+        'session_user_id' => $_SESSION['user_id'] ?? 'not set',
+    ];
+    die("❌ Access Denied. Superadmin only.\n\nDebug: " . json_encode($debug));
 }
 
 global $conn;
