@@ -53,6 +53,53 @@ if ($filter_period === 'month') {
 
 $filter_year = intval($_GET['year'] ?? date('Y')); // dipakai khusus untuk chart bulanan
 
+// ============================================
+// TOP CUSTOMERS & RECIPIENTS (for approver/admin)
+// ============================================
+$top_customers = [];
+$top_recipients = [];
+
+if (in_array($user_role, ['approver', 'superadmin'])) {
+    // Top customers by delivery volume (this month)
+    $month_from = date('Y-m-01');
+    $month_to = date('Y-m-t');
+
+    $sql = "SELECT sd.customer_name, COUNT(*) as delivery_count
+            FROM sipb_documents sd
+            WHERE sd.status = 'Approved'
+            AND sd.customer_name IS NOT NULL
+            AND sd.customer_name != ''
+            AND sd.doc_date BETWEEN ? AND ?
+            GROUP BY sd.customer_name
+            ORDER BY delivery_count DESC
+            LIMIT 10";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param('ss', $month_from, $month_to);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $top_customers[] = $row;
+    }
+
+    // Top recipients (perusahaan penerima) by volume
+    $sql = "SELECT sd.company, COUNT(*) as delivery_count
+            FROM sipb_documents sd
+            WHERE sd.status = 'Approved'
+            AND sd.company IS NOT NULL
+            AND sd.company != ''
+            AND sd.doc_date BETWEEN ? AND ?
+            GROUP BY sd.company
+            ORDER BY delivery_count DESC
+            LIMIT 10";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param('ss', $month_from, $month_to);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $top_recipients[] = $row;
+    }
+}
+
 /**
  * Bangun WHERE clause + params gabungan: scope role + filter kategori + filter periode.
  * $extra_status_sql: kondisi status tambahan (misal "sd.status = 'Approved'"), atau null.
@@ -393,6 +440,57 @@ $BASE = getenv('APP_URL') ?: 'http://localhost/SIPB-GPI';
                 <div class="stat-number"><?php echo $total_rejected; ?></div>
             </div>
         </div>
+
+        <!-- Top Customers & Recipients (for approver/admin only) -->
+        <?php if (in_array($user_role, ['approver', 'superadmin'])): ?>
+        <div class="chart-row">
+            <!-- Top Customers -->
+            <div class="content-card">
+                <h5 style="margin-bottom: 4px;"><i class="fas fa-building"></i> Top Customers (Bulan Ini)</h5>
+                <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 16px;">
+                    Berdasarkan SIPB berstatus <strong>Approved</strong>
+                </p>
+                <?php if (count($top_customers) > 0): ?>
+                    <?php foreach ($top_customers as $i => $cust): ?>
+                        <div style="padding: 12px 0; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-weight: 600; font-size: 14px;"><?php echo htmlspecialchars($cust['customer_name']); ?></div>
+                                <div style="font-size: 12px; color: var(--text-muted);">#<?php echo $i + 1; ?> pengiriman</div>
+                            </div>
+                            <div style="background: #e8f4ff; color: #0d6efd; padding: 4px 12px; border-radius: 20px; font-weight: 600; font-size: 14px;">
+                                <?php echo $cust['delivery_count']; ?>x
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <p style="text-align: center; padding: 20px 0; color: var(--text-muted);">Belum ada data</p>
+                <?php endif; ?>
+            </div>
+
+            <!-- Top Recipients (Perusahaan Penerima) -->
+            <div class="content-card">
+                <h5 style="margin-bottom: 4px;"><i class="fas fa-truck"></i> Top Perusahaan Penerima (Bulan Ini)</h5>
+                <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 16px;">
+                    Berdasarkan SIPB berstatus <strong>Approved</strong>
+                </p>
+                <?php if (count($top_recipients) > 0): ?>
+                    <?php foreach ($top_recipients as $i => $recip): ?>
+                        <div style="padding: 12px 0; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-weight: 600; font-size: 14px;"><?php echo htmlspecialchars($recip['company']); ?></div>
+                                <div style="font-size: 12px; color: var(--text-muted);">#<?php echo $i + 1; ?> pengiriman</div>
+                            </div>
+                            <div style="background: #e8f5e9; color: #2e7d32; padding: 4px 12px; border-radius: 20px; font-weight: 600; font-size: 14px;">
+                                <?php echo $recip['delivery_count']; ?>x
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <p style="text-align: center; padding: 20px 0; color: var(--text-muted);">Belum ada data</p>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <div class="chart-row">
             <div class="content-card">
