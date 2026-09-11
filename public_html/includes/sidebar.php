@@ -42,6 +42,9 @@ $role_labels = [
         <a href="<?php echo $BASE; ?>/admin/fg-products/list.php" class="<?php echo $active_page === 'fg-products' ? 'active' : ''; ?>">
             <i class="fas fa-database"></i> <span class="label">Manage Database FG</span>
         </a>
+        <a href="<?php echo $BASE; ?>/admin/cleanup-rejected.php" class="<?php echo $active_page === 'cleanup-rejected' ? 'active' : ''; ?>">
+            <i class="fas fa-trash"></i> <span class="label">Cleanup Rejected SIPB</span>
+        </a>
         <?php endif; ?>
         <a href="<?php echo $BASE; ?>/logout.php">
             <i class="fas fa-right-from-bracket"></i> <span class="label">Logout</span>
