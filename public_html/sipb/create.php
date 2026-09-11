@@ -532,8 +532,8 @@ foreach ($companies as $c) {
                 <div class="form-text">💡 Sesuaikan nama yang sudah pernah di-submit</div>
             </div>
             <div class="col-md-6">
-                <label class="form-label">Perusahaan</label>
-                <input type="text" name="company" class="form-control" placeholder="Nama perusahaan/kurir" value="<?php echo htmlspecialchars($_POST['company'] ?? ''); ?>" list="companyList">
+                <label class="form-label">Perusahaan Penerima</label>
+                <input type="text" name="company" class="form-control" placeholder="Nama perusahaan penerima barang" value="<?php echo htmlspecialchars($_POST['company'] ?? ''); ?>" list="companyList">
                 <datalist id="companyList">
                     <?php foreach ($suggested_companies as $c): ?>
                         <option value="<?php echo htmlspecialchars($c); ?>">
